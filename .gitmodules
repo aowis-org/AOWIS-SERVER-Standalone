@@ -1,0 +1,6 @@
+[submodule "AOWIS-SERVER-GUI"]
+	path = AOWIS-SERVER-GUI
+	url = https://github.com/aowis-org/AOWIS-SERVER-GUI.git
+[submodule "AOWIS-SERVER-MAP"]
+	path = AOWIS-SERVER-MAP
+	url = https://github.com/aowis-org/AOWIS-SERVER-MAP.git
