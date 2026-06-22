@@ -24,7 +24,7 @@ compile_linux.sh
 
 from the project root. Make sure a suitable Qt 6 environment is installed using your distribution's package manager.
 
-### Windows
+### Windows & macOS
 
 For cross-compiling from Linux, you can use a Docker-based setup.
 
@@ -32,29 +32,26 @@ For cross-compiling from Linux, you can use a Docker-based setup.
 
 Run:
 
-```bash
-/tools/qt-windows/docker_build.sh
-```
+- Windows: `tools/qt-windows/docker_build.sh`
+- macOS: `tools/qt-macos/docker_build.sh`
 
 This will pull a Docker container and install the required additional Qt dependencies inside it.
 
-#### Build for Windows using the prepared Docker Container
+#### Build for Windows / macOS using the prepared Docker Container
 
-After you have downloaded and prepared the Docker container, as described in the previous section, run:
+After you have prepared the Docker container, run:
 
-```bash
-compile_windows.sh
-```
+- Windows: `compile_windows.sh`
+- macOS: `compile_macos.sh`
 
-from the project root to build AOWIS-SERVER-Standalone for Windows.
+from the project root to build AOWIS-SERVER-Standalone for Windows or macOS.
 
-The build result can be found in:
+The build results can be found in:
 
-```bash
-build-windows-dist/
-```
+- Windows: `build-windows-dist/`
+- macOS: `build-macos-dist/`
 
-This directory should also contain a zip file ready for distribution.
+These directories should also contain zip files ready for distribution.
 
 ### WebAssembly
 
