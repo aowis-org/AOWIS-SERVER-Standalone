@@ -20,4 +20,4 @@ After that, you can compile by running
 - `compile_linux.sh`
 
 ### WebAssembly
-While the [AOWIS-SERVER-GUI](https://github.com/aowis-org/AOWIS-SERVER-GUI) can be built for WebAssembly, this standalone version cannot, because most of the server components baked in have dependencies and requirements that do not work with WebAssembly. If you want to use the GUI in the browser, you have to you have to use the full server infrastructure.
+While the [AOWIS-SERVER-GUI](https://github.com/aowis-org/AOWIS-SERVER-GUI) can be built for WebAssembly, this standalone version cannot, because most of the server components baked in have dependencies and requirements that do not work with WebAssembly. If you want to use the GUI in the browser, you have to use the full server infrastructure.
