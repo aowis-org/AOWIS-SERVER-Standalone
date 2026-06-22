@@ -22,7 +22,7 @@ After that, you can compile the project by running:
 compile_linux.sh
 ```
 
-from the project root.
+from the project root. Make sure a suitable Qt 6 environment is installed using your distribution's package manager.
 
 ### Windows
 
