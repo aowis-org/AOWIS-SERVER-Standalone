@@ -36,7 +36,7 @@ Run:
 /tools/qt-windows/docker_build.sh
 ```
 
-This will pull the Docker container and install the required additional Qt dependencies inside it.
+This will pull a Docker container and install the required additional Qt dependencies inside it.
 
 #### Build for Windows using the prepared Docker Container
 
