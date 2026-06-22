@@ -1,0 +1,54 @@
+FROM stateoftheartio/qt6:6.7-macos-aqt
+
+USER root
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        python3-dev \
+        build-essential \
+        p7zip-full \
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m venv /opt/aqt-venv && \
+    /opt/aqt-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    /opt/aqt-venv/bin/pip install --no-cache-dir aqtinstall
+
+# Install Linux host Qt tools: moc, rcc, uic, etc.
+RUN set -eux; \
+    echo "Installing Linux host Qt into $QT_PATH/${QT_VERSION}/gcc_64"; \
+    /opt/aqt-venv/bin/python -m aqt install-qt \
+        -O "$QT_PATH" \
+        linux desktop "$QT_VERSION" linux_gcc_64; \
+    test -x "$QT_PATH/${QT_VERSION}/gcc_64/libexec/moc"; \
+    test -x "$QT_PATH/${QT_VERSION}/gcc_64/libexec/rcc"; \
+    test -x "$QT_PATH/${QT_VERSION}/gcc_64/libexec/uic"
+
+# Install extra macOS target Qt modules.
+RUN set -eux; \
+    echo "Installing macOS target Qt modules into $QT_PATH/${QT_VERSION}/macos"; \
+    /opt/aqt-venv/bin/python -m aqt install-qt \
+        -O "$QT_PATH" \
+        mac desktop "$QT_VERSION" clang_64 \
+        -m qtwebsockets qthttpserver qtpositioning qtserialport; \
+    test -f "$QT_PATH/${QT_VERSION}/macos/lib/cmake/Qt6WebSockets/Qt6WebSocketsConfig.cmake"; \
+    test -f "$QT_PATH/${QT_VERSION}/macos/lib/cmake/Qt6HttpServer/Qt6HttpServerConfig.cmake"; \
+    test -f "$QT_PATH/${QT_VERSION}/macos/lib/cmake/Qt6Positioning/Qt6PositioningConfig.cmake"; \
+    test -f "$QT_PATH/${QT_VERSION}/macos/lib/cmake/Qt6SerialPort/Qt6SerialPortConfig.cmake"; \
+    find "$QT_PATH/${QT_VERSION}/macos/lib/cmake" \
+        -maxdepth 1 \
+        -type d \
+        \( -name 'Qt6WebSockets*' \
+           -o -name 'Qt6HttpServer*' \
+           -o -name 'Qt6Positioning*' \
+           -o -name 'Qt6SerialPort*' \) \
+        -print; \
+    chown -R user:user "$QT_PATH"
+
+USER user
+WORKDIR /home/user
