@@ -1,0 +1,27 @@
+FROM stateoftheartio/qt6:6.7-mingw-aqt
+
+USER user
+WORKDIR /home/user
+
+RUN set -eux; \
+    echo "QT_VERSION=$QT_VERSION"; \
+    echo "QT_PATH=$QT_PATH"; \
+    curl -fL -o /tmp/aqt.exe "https://github.com/miurahr/aqtinstall/releases/download/v${AQT_VERSION}/aqt.exe"; \
+    echo "${AQT_SHA256}  /tmp/aqt.exe" | sha256sum -c -; \
+    wine /tmp/aqt.exe install-qt \
+        -O "$QT_PATH" \
+        windows desktop "$QT_VERSION" win64_mingw \
+        -m qtwebsockets qthttpserver qtpositioning qtserialport; \
+    rm -f /tmp/aqt.exe; \
+    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6WebSockets/Qt6WebSocketsConfig.cmake"; \
+    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6HttpServer/Qt6HttpServerConfig.cmake"; \
+    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6Positioning/Qt6PositioningConfig.cmake"; \
+    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6SerialPort/Qt6SerialPortConfig.cmake"; \
+    find "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake" \
+        -maxdepth 1 \
+        -type d \
+        \( -name 'Qt6WebSockets*' \
+           -o -name 'Qt6HttpServer*' \
+           -o -name 'Qt6Positioning*' \
+           -o -name 'Qt6SerialPort*' \) \
+        -print
