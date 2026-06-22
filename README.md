@@ -24,7 +24,7 @@ compile_linux.sh
 
 from the project root. Make sure a suitable Qt 6 environment is installed using your distribution's package manager.
 
-### Windows & macOS
+### Windows / macOS
 
 For cross-compiling from Linux, you can use a Docker-based setup.
 
