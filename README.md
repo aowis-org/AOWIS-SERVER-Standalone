@@ -4,8 +4,8 @@ Meta-Repository to compile a standalone version of the **AOWIS Controller**.
 
 The baked-in server components are:
 
-- AOWIS-SERVER-GUI (the *Controller*)
-- AOWIS-SERVER-MAP (the *Caching Map Tile Server*)
+- [AOWIS-SERVER-GUI](https://github.com/aowis-org/AOWIS-SERVER-GUI) (the *Controller*)
+- [AOWIS-SERVER-MAP](https://github.com/aowis-org/AOWIS-SERVER-MAP) (the *Caching Map Tile Server*)
 
 ## Build
 
