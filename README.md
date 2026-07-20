@@ -25,6 +25,8 @@ from the project root. Make sure a suitable Qt 6 environment is installed using 
 ### Windows / macOS
 For cross-compiling from Linux, you can use a Docker-based setup.
 
+Compiling for Windows is tested and works well, the macOS one only compiles for outdated intel-mac.
+
 #### Prepare the Docker Container
 Run:
 
