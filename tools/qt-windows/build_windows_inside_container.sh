@@ -1,5 +1,10 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
+WINDOWS_DEPS_PREFIX="C:/aowis-deps"
+WINDOWS_DEPS_BIN="/home/user/.wine/drive_c/aowis-deps/bin"
+MAX_DEFAULT_WINDOWS_BUILD_JOBS=8
+WINE_RETRY_BUILD_JOBS=2
 
 echo "=== Building AOWIS for Windows x64 using Qt/MinGW ==="
 
@@ -8,19 +13,90 @@ cd /project
 rm -rf build-windows
 mkdir -p build-windows
 
+if [ ! -d "$WINDOWS_DEPS_BIN" ]; then
+    echo "ERROR: Windows dependency prefix is missing from the Docker image:"
+    echo "$WINDOWS_DEPS_BIN"
+    echo "Rebuild the image with tools/qt-windows/docker_build.sh."
+    exit 1
+fi
+
+HOST_JOBS="$(nproc)"
+WINDOWS_BUILD_JOBS="${AOWIS_WINDOWS_BUILD_JOBS:-}"
+if [ -z "$WINDOWS_BUILD_JOBS" ]; then
+    WINDOWS_BUILD_JOBS="$HOST_JOBS"
+    if [ "$WINDOWS_BUILD_JOBS" -gt "$MAX_DEFAULT_WINDOWS_BUILD_JOBS" ]; then
+        WINDOWS_BUILD_JOBS="$MAX_DEFAULT_WINDOWS_BUILD_JOBS"
+    fi
+fi
+
+if ! [[ "$WINDOWS_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: AOWIS_WINDOWS_BUILD_JOBS must be a positive integer."
+    exit 1
+fi
+
+if [ "$WINE_RETRY_BUILD_JOBS" -gt "$WINDOWS_BUILD_JOBS" ]; then
+    WINE_RETRY_BUILD_JOBS="$WINDOWS_BUILD_JOBS"
+fi
+
+echo "Windows build parallelism: $WINDOWS_BUILD_JOBS job(s) (host reports $HOST_JOBS CPU(s))"
+
 qt-cmake . \
   -G Ninja \
   -B build-windows \
-  -DCMAKE_BUILD_TYPE=Release
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH="$WINDOWS_DEPS_PREFIX"
 
-cmake --build build-windows \
-  --target aowis-server-gui \
-  --parallel "$(nproc)"
+BUILD_LOG="build-windows/aowis-windows-build.log"
+
+run_gui_build()
+{
+    local jobs="$1"
+    local append_log="$2"
+    local status
+
+    set +e
+    if [ "$append_log" = "yes" ]; then
+        cmake --build build-windows \
+          --target aowis-server-gui \
+          --parallel "$jobs" 2>&1 | tee -a "$BUILD_LOG"
+        status="${PIPESTATUS[0]}"
+    else
+        cmake --build build-windows \
+          --target aowis-server-gui \
+          --parallel "$jobs" 2>&1 | tee "$BUILD_LOG"
+        status="${PIPESTATUS[0]}"
+    fi
+    set -e
+
+    return "$status"
+}
+
+if ! run_gui_build "$WINDOWS_BUILD_JOBS" "no"; then
+    if grep -Eiq \
+        'wine: failed to map the shared user data: c0000018|cannot execute .*cc1(plus)?\.exe.*CreateProcess: No such file or directory' \
+        "$BUILD_LOG"; then
+        echo
+        echo "Detected a transient Wine/MinGW process-launch failure."
+        echo "Retrying the unfinished Ninja build with $WINE_RETRY_BUILD_JOBS job(s)."
+
+        if command -v wineserver >/dev/null 2>&1; then
+            wineserver -k >/dev/null 2>&1 || true
+            sleep 1
+        fi
+
+        if ! run_gui_build "$WINE_RETRY_BUILD_JOBS" "yes"; then
+            echo "ERROR: Windows build still failed after the Wine/MinGW retry."
+            exit 1
+        fi
+    else
+        echo "ERROR: Windows build failed. See $BUILD_LOG for details."
+        exit 1
+    fi
+fi
 
 mkdir -p build-windows/deploy
 
 EXE="build-windows/AOWIS-SERVER-GUI/aowis-server-gui.exe"
-
 if [ ! -f "$EXE" ]; then
     echo "ERROR: Expected executable not found:"
     echo "$EXE"
@@ -39,6 +115,12 @@ echo "Found GUI executable: $EXE"
 cp "$EXE" build-windows/deploy/
 
 DEPLOY_EXE="build-windows/deploy/aowis-server-gui.exe"
+
+find "$WINDOWS_DEPS_BIN" \
+    -maxdepth 1 \
+    -type f \
+    -iname '*.dll' \
+    -exec cp -v '{}' build-windows/deploy/ \;
 
 windeployqt \
   --dir build-windows/deploy \

@@ -1,5 +1,9 @@
 FROM stateoftheartio/qt6:6.7-mingw-aqt
 
+ARG AOWIS_ZLIB_VERSION=1.3.2
+ARG AOWIS_TIFF_VERSION=4.7.2
+ARG AOWIS_WINDOWS_DEPS_PREFIX=C:/aowis-deps
+
 USER user
 WORKDIR /home/user
 
@@ -11,17 +15,97 @@ RUN set -eux; \
     wine /tmp/aqt.exe install-qt \
         -O "$QT_PATH" \
         windows desktop "$QT_VERSION" win64_mingw \
-        -m qtwebsockets qthttpserver qtpositioning qtserialport; \
+        -m qtwebsockets qthttpserver qtpositioning qtserialport qtshadertools; \
     rm -f /tmp/aqt.exe; \
     test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6WebSockets/Qt6WebSocketsConfig.cmake"; \
     test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6HttpServer/Qt6HttpServerConfig.cmake"; \
     test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6Positioning/Qt6PositioningConfig.cmake"; \
     test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6SerialPort/Qt6SerialPortConfig.cmake"; \
+    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6ShaderTools/Qt6ShaderToolsConfig.cmake"; \
+    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6Gui/Qt6GuiConfig.cmake"; \
+    mkdir -p /tmp/aowis-qrhi-probe; \
+    printf '%s\n' \
+        'cmake_minimum_required(VERSION 3.21)' \
+        'project(AowisQrhiProbe LANGUAGES CXX)' \
+        'find_package(Qt6 REQUIRED COMPONENTS Gui ShaderTools)' \
+        'if(NOT TARGET Qt6::GuiPrivate)' \
+        '    message(FATAL_ERROR "Qt6::GuiPrivate target is unavailable")' \
+        'endif()' \
+        'add_executable(aowis_qrhi_probe main.cpp)' \
+        'target_link_libraries(aowis_qrhi_probe PRIVATE Qt6::GuiPrivate)' \
+        > /tmp/aowis-qrhi-probe/CMakeLists.txt; \
+    printf '%s\n' \
+        '#include <rhi/qrhi.h>' \
+        'int main()' \
+        '{' \
+        '    return static_cast<int>(QRhi::Null);' \
+        '}' \
+        > /tmp/aowis-qrhi-probe/main.cpp; \
+    qt-cmake /tmp/aowis-qrhi-probe \
+        -G Ninja \
+        -B /tmp/aowis-qrhi-probe-build \
+        -DCMAKE_BUILD_TYPE=Release; \
+    cmake --build /tmp/aowis-qrhi-probe-build --parallel "$(nproc)"; \
+    rm -rf /tmp/aowis-qrhi-probe /tmp/aowis-qrhi-probe-build; \
     find "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake" \
         -maxdepth 1 \
         -type d \
         \( -name 'Qt6WebSockets*' \
            -o -name 'Qt6HttpServer*' \
            -o -name 'Qt6Positioning*' \
-           -o -name 'Qt6SerialPort*' \) \
+           -o -name 'Qt6SerialPort*' \
+           -o -name 'Qt6ShaderTools*' \
+           -o -name 'Qt6Gui*' \) \
         -print
+
+RUN set -eux; \
+    git clone --depth 1 --branch "v${AOWIS_ZLIB_VERSION}" https://github.com/madler/zlib.git /home/user/aowis-zlib; \
+    cd /home/user/aowis-zlib; \
+    test "$(git rev-parse HEAD)" = "da607da739fa6047df13e66a2af6b8bec7c2a498"; \
+    qt-cmake . \
+        -G Ninja \
+        -B build-windows \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$AOWIS_WINDOWS_DEPS_PREFIX" \
+        -DZLIB_BUILD_TESTING=OFF \
+        -DZLIB_BUILD_SHARED=ON \
+        -DZLIB_BUILD_STATIC=OFF; \
+    cmake --build build-windows --parallel "$(nproc)"; \
+    cmake --install build-windows; \
+    rm -rf /home/user/aowis-zlib; \
+    test -f "/home/user/.wine/drive_c/aowis-deps/include/zlib.h"; \
+    find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*z*.dll' -print -quit | grep -q .
+
+RUN set -eux; \
+    git clone --depth 1 --branch "v${AOWIS_TIFF_VERSION}" https://gitlab.com/libtiff/libtiff.git /home/user/aowis-libtiff; \
+    cd /home/user/aowis-libtiff; \
+    test "$(git rev-parse HEAD)" = "d01a94be176f5f6a87f7ee1c0b32e65416aa2b4d"; \
+    qt-cmake . \
+        -G Ninja \
+        -B build-windows \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$AOWIS_WINDOWS_DEPS_PREFIX" \
+        -DCMAKE_PREFIX_PATH="$AOWIS_WINDOWS_DEPS_PREFIX" \
+        -DBUILD_SHARED_LIBS=ON \
+        -Dtiff-static=OFF \
+        -Dtiff-tools=OFF \
+        -Dtiff-tests=OFF \
+        -Dtiff-contrib=OFF \
+        -Dtiff-docs=OFF \
+        -Dtiff-cxx=OFF \
+        -Dtiff-opengl=OFF \
+        -Dzlib=ON \
+        -Dlibdeflate=OFF \
+        -Djpeg=OFF \
+        -Djbig=OFF \
+        -Dlerc=OFF \
+        -Dlzma=OFF \
+        -Dzstd=OFF \
+        -Dwebp=OFF; \
+    cmake --build build-windows --parallel "$(nproc)"; \
+    cmake --install build-windows; \
+    rm -rf /home/user/aowis-libtiff; \
+    test -f "/home/user/.wine/drive_c/aowis-deps/include/tiff.h"; \
+    test -f "/home/user/.wine/drive_c/aowis-deps/include/tiffio.h"; \
+    find "/home/user/.wine/drive_c/aowis-deps/lib" -maxdepth 1 -type f \( -iname '*tiff*.a' -o -iname '*tiff*.lib' \) -print -quit | grep -q .; \
+    find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*tiff*.dll' -print -quit | grep -q .
