@@ -6,7 +6,6 @@ ARG AOWIS_WINDOWS_DEPS_PREFIX=C:/aowis-deps
 
 USER user
 WORKDIR /home/user
-
 RUN set -eux; \
     echo "QT_VERSION=$QT_VERSION"; \
     echo "QT_PATH=$QT_PATH"; \
