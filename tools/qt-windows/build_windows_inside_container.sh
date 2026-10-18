@@ -14,7 +14,6 @@ cd /project
 
 rm -rf build-windows
 mkdir -p build-windows
-
 if [ ! -f "$WINDOWS_DEPS_INCLUDE/tiffio.h" ]; then
     echo "ERROR: Windows libtiff headers are missing from the Docker image:"
     echo "$WINDOWS_DEPS_INCLUDE/tiffio.h"
@@ -23,7 +22,6 @@ if [ ! -f "$WINDOWS_DEPS_INCLUDE/tiffio.h" ]; then
     echo "  ./tools/qt-windows/docker_build.sh"
     exit 1
 fi
-
 TIFF_DLL="$(find "$WINDOWS_DEPS_BIN" -maxdepth 1 -type f -iname '*tiff*.dll' -print -quit)"
 if [ -z "$TIFF_DLL" ]; then
     echo "ERROR: Windows libtiff runtime DLL is missing from the Docker image:"
@@ -33,7 +31,6 @@ if [ -z "$TIFF_DLL" ]; then
     echo "  ./tools/qt-windows/docker_build.sh"
     exit 1
 fi
-
 HOST_JOBS="$(nproc)"
 WINDOWS_BUILD_JOBS="${AOWIS_WINDOWS_BUILD_JOBS:-}"
 if [ -z "$WINDOWS_BUILD_JOBS" ]; then
@@ -42,7 +39,6 @@ if [ -z "$WINDOWS_BUILD_JOBS" ]; then
         WINDOWS_BUILD_JOBS="$MAX_DEFAULT_WINDOWS_BUILD_JOBS"
     fi
 fi
-
 if ! [[ "$WINDOWS_BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
     echo "ERROR: AOWIS_WINDOWS_BUILD_JOBS must be a positive integer."
     exit 1
@@ -57,8 +53,8 @@ qt-cmake . \
   -G Ninja \
   -B build-windows \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_PREFIX_PATH="$WINDOWS_DEPS_PREFIX"
-
+  -DCMAKE_PREFIX_PATH="$WINDOWS_DEPS_PREFIX" \
+  -DBUILD_TESTING=OFF
 BUILD_LOG="build-windows/aowis-windows-build.log"
 
 run_gui_build()
@@ -66,7 +62,6 @@ run_gui_build()
     local jobs="$1"
     local append_log="$2"
     local status
-
     set +e
     if [ "$append_log" = "yes" ]; then
         cmake --build build-windows \
@@ -83,7 +78,6 @@ run_gui_build()
 
     return "$status"
 }
-
 if ! run_gui_build "$WINDOWS_BUILD_JOBS" "no"; then
     if grep -Eiq \
         'wine: failed to map the shared user data: c0000018|cannot execute .*cc1(plus)?\.exe.*CreateProcess: No such file or directory' \
@@ -95,7 +89,6 @@ if ! run_gui_build "$WINDOWS_BUILD_JOBS" "no"; then
             wineserver -k >/dev/null 2>&1 || true
             sleep 1
         fi
-
         if ! run_gui_build "$WINE_RETRY_BUILD_JOBS" "yes"; then
             echo "ERROR: Windows build still failed after the Wine/MinGW retry."
             exit 1
@@ -107,7 +100,6 @@ if ! run_gui_build "$WINDOWS_BUILD_JOBS" "no"; then
 fi
 
 mkdir -p build-windows/deploy
-
 EXE="build-windows/AOWIS-SERVER-GUI/aowis-server-gui.exe"
 if [ ! -f "$EXE" ]; then
     echo "ERROR: Expected executable not found:"
@@ -125,7 +117,6 @@ fi
 echo "Found GUI executable: $EXE"
 
 cp "$EXE" build-windows/deploy/
-
 # libtiff and zlib are built for the Windows target into C:/aowis-deps by
 # Dockerfile.qt-windows. Ship every runtime DLL from that private prefix.
 find "$WINDOWS_DEPS_BIN" \
@@ -140,7 +131,6 @@ windeployqt \
   --compiler-runtime \
   --dir build-windows/deploy \
   "$DEPLOY_EXE"
-
 # EPANET-MSX uses OpenMP when available. MinGW's OpenMP runtime is not
 # reliably included by windeployqt, so deploy libgomp explicitly.
 if [ ! -f build-windows/deploy/libgomp-1.dll ]; then
@@ -148,7 +138,6 @@ if [ ! -f build-windows/deploy/libgomp-1.dll ]; then
         -type f \
         -iname 'libgomp-1.dll' \
         -print -quit)"
-
     if [ -z "$LIBGOMP_DLL" ] || [ ! -f "$LIBGOMP_DLL" ]; then
         echo "ERROR: libgomp-1.dll is required by the Windows build but was not found."
         echo "Searched below: /home/user/.wine/drive_c/Qt/Tools"

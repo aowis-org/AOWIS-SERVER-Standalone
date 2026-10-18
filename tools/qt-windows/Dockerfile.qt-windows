@@ -1,62 +1,48 @@
-FROM stateoftheartio/qt6:6.7-mingw-aqt
+# Debian 13 stable + Qt 6.12 Windows binaries and matching GCC 15.1 toolchain.
+# Qt and its matching compiler are installed together; no upstream sources are patched.
+FROM debian:13-slim
 
+ARG AOWIS_QT_VERSION=6.12.0
+ARG AOWIS_MINGW_VERSION=15.1.0
+# The last aqtinstall release (3.3.0) cannot read Qt 6.11+ Windows package paths.
+# Pin upstream's merged fix for https://github.com/miurahr/aqtinstall/pull/1000 .
+# Update to a released aqtinstall when the fix is published.
+ARG AOWIS_AQT_GIT_REF=8c3695d
 ARG AOWIS_ZLIB_VERSION=1.3.2
 ARG AOWIS_TIFF_VERSION=4.7.2
 ARG AOWIS_WINDOWS_DEPS_PREFIX=C:/aowis-deps
 
+ENV DEBIAN_FRONTEND=noninteractive \
+    AOWIS_QT_VERSION=${AOWIS_QT_VERSION} \
+    AOWIS_MINGW_VERSION=${AOWIS_MINGW_VERSION} \
+    WINEPREFIX=/home/user/.wine \
+    WINEARCH=win64 \
+    WINEDEBUG=-all \
+    HOME=/home/user \
+    PATH=/home/user/bin:/opt/aqt/bin:${PATH}
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl git bash python3 python3-venv \
+    wine wine64 fonts-wine \
+    cmake ninja-build zip unzip 7zip \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/aqt \
+    && /opt/aqt/bin/pip install --no-cache-dir "git+https://github.com/miurahr/aqtinstall.git@${AOWIS_AQT_GIT_REF}" \
+    && useradd --create-home --shell /bin/bash user \
+    && mkdir -p /home/user/bin \
+    && chown -R user:user /home/user
+
+COPY --chown=user:user setup_toolchain.sh /home/user/setup_toolchain.sh
 USER user
 WORKDIR /home/user
-RUN set -eux; \
-    echo "QT_VERSION=$QT_VERSION"; \
-    echo "QT_PATH=$QT_PATH"; \
-    curl -fL -o /tmp/aqt.exe "https://github.com/miurahr/aqtinstall/releases/download/v${AQT_VERSION}/aqt.exe"; \
-    echo "${AQT_SHA256}  /tmp/aqt.exe" | sha256sum -c -; \
-    wine /tmp/aqt.exe install-qt \
-        -O "$QT_PATH" \
-        windows desktop "$QT_VERSION" win64_mingw \
-        -m qtwebsockets qthttpserver qtpositioning qtserialport qtshadertools; \
-    rm -f /tmp/aqt.exe; \
-    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6WebSockets/Qt6WebSocketsConfig.cmake"; \
-    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6HttpServer/Qt6HttpServerConfig.cmake"; \
-    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6Positioning/Qt6PositioningConfig.cmake"; \
-    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6SerialPort/Qt6SerialPortConfig.cmake"; \
-    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6ShaderTools/Qt6ShaderToolsConfig.cmake"; \
-    test -f "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake/Qt6Gui/Qt6GuiConfig.cmake"; \
-    mkdir -p /tmp/aowis-qrhi-probe; \
-    printf '%s\n' \
-        'cmake_minimum_required(VERSION 3.21)' \
-        'project(AowisQrhiProbe LANGUAGES CXX)' \
-        'find_package(Qt6 REQUIRED COMPONENTS Gui ShaderTools)' \
-        'if(NOT TARGET Qt6::GuiPrivate)' \
-        '    message(FATAL_ERROR "Qt6::GuiPrivate target is unavailable")' \
-        'endif()' \
-        'add_executable(aowis_qrhi_probe main.cpp)' \
-        'target_link_libraries(aowis_qrhi_probe PRIVATE Qt6::GuiPrivate)' \
-        > /tmp/aowis-qrhi-probe/CMakeLists.txt; \
-    printf '%s\n' \
-        '#include <rhi/qrhi.h>' \
-        'int main()' \
-        '{' \
-        '    return static_cast<int>(QRhi::Null);' \
-        '}' \
-        > /tmp/aowis-qrhi-probe/main.cpp; \
-    qt-cmake /tmp/aowis-qrhi-probe \
-        -G Ninja \
-        -B /tmp/aowis-qrhi-probe-build \
-        -DCMAKE_BUILD_TYPE=Release; \
-    cmake --build /tmp/aowis-qrhi-probe-build --parallel "$(nproc)"; \
-    rm -rf /tmp/aowis-qrhi-probe /tmp/aowis-qrhi-probe-build; \
-    find "/home/user/.wine/drive_c/Qt/${QT_VERSION}/mingw_64/lib/cmake" \
-        -maxdepth 1 \
-        -type d \
-        \( -name 'Qt6WebSockets*' \
-           -o -name 'Qt6HttpServer*' \
-           -o -name 'Qt6Positioning*' \
-           -o -name 'Qt6SerialPort*' \
-           -o -name 'Qt6ShaderTools*' \
-           -o -name 'Qt6Gui*' \) \
-        -print
 
+# Fail immediately if the Qt and GCC ABI do not match or a simple C++20
+# program fails to compile with the Windows compiler and Qt's own libraries.
+RUN bash /home/user/setup_toolchain.sh \
+    && rm -f /home/user/setup_toolchain.sh
+
+# Preserve the existing pinned, native Windows zlib and libtiff builds.
+# Those DLLs are bundled with the GUI by build_windows_inside_container.sh.
 RUN set -eux; \
     git clone --depth 1 --branch "v${AOWIS_ZLIB_VERSION}" https://github.com/madler/zlib.git /home/user/aowis-zlib; \
     cd /home/user/aowis-zlib; \
@@ -71,6 +57,7 @@ RUN set -eux; \
         -DZLIB_BUILD_STATIC=OFF; \
     cmake --build build-windows --parallel "$(nproc)"; \
     cmake --install build-windows; \
+    cd /home/user; \
     rm -rf /home/user/aowis-zlib; \
     test -f "/home/user/.wine/drive_c/aowis-deps/include/zlib.h"; \
     find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*z*.dll' -print -quit | grep -q .
@@ -103,6 +90,7 @@ RUN set -eux; \
         -Dwebp=OFF; \
     cmake --build build-windows --parallel "$(nproc)"; \
     cmake --install build-windows; \
+    cd /home/user; \
     rm -rf /home/user/aowis-libtiff; \
     test -f "/home/user/.wine/drive_c/aowis-deps/include/tiff.h"; \
     test -f "/home/user/.wine/drive_c/aowis-deps/include/tiffio.h"; \
