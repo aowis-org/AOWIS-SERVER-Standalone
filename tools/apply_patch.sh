@@ -1,102 +1,175 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Patches may replace this very script while it runs, and unzip rewrites
-# files in place. bash reads scripts incrementally, so all work happens in
-# main(), which bash parses completely before the first command executes.
+# Apply a Standalone patch ZIP rooted at the repository directory, then
+# regenerate a source snapshot of the Standalone superproject only.
+# A patch may replace this script while it runs, so put the entire operation
+# in a function that Bash parses before extraction begins.
 main() {
+    local script_dir project_root project_parent project_name
+    local manifest patch_name patch entry relative path segment
+    local -a entries=() segments=() submodules=()
+
     script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
     project_root="$(cd -- "$script_dir/.." && pwd -P)"
-    # Patch archives may include an optional deletion manifest. A prior copy of
-    # this script does not know about it; after updating the script, run --finish
-    # once to remove the listed obsolete files. Newer applications finalize it
-    # automatically. The manifest is transient and is never kept in the worktree.
+    project_parent="$(dirname -- "$project_root")"
+    project_name="$(basename -- "$project_root")"
     manifest="$project_root/.aowis-patch-delete.txt"
 
+    for tool in git realpath; do
+        command -v "$tool" >/dev/null 2>&1 || {
+            printf 'Required tool is not installed: %s\n' "$tool" >&2
+            return 1
+        }
+    done
+    [[ "$(git -C "$project_root" rev-parse --show-toplevel 2>/dev/null)" == "$project_root" ]] || {
+        printf 'Expected the Standalone Git worktree root: %s\n' "$project_root" >&2
+        return 1
+    }
+    # Exclude Git submodules from Standalone patches as well as snapshots.
+    local index_entry index_metadata
+    while IFS= read -r -d '' index_entry; do
+        index_metadata="${index_entry%%$'\t'*}"
+        [[ "${index_metadata%% *}" == 160000 ]] || continue
+        submodules+=("${index_entry#*$'\t'}")
+    done < <(git -C "$project_root" ls-files --stage -z)
+
+    in_submodule() {
+        local check_path="$1" submodule
+        for submodule in "${submodules[@]}"; do
+            [[ "$check_path" == "$submodule" || "$check_path" == "$submodule/"* ]] && return 0
+        done
+        return 1
+    }
+
     apply_deletions() {
-        [[ ! -L "$manifest" ]] || { echo "Refusing symlinked patch deletion manifest" >&2; return 1; }
+        [[ ! -L "$manifest" ]] || {
+            printf 'Refusing symlinked patch deletion manifest.\n' >&2
+            return 1
+        }
         [[ -f "$manifest" ]] || return 0
+
         local relative path segment
-        local -a entries=() segments=()
-        # Validate the *entire* manifest before deleting anything.
+        local -a segments=() deletion_paths=()
+
+        # Validate every entry before removing any file. Use realpath so
+        # symlinks cannot redirect deletions outside this worktree.
         while IFS= read -r relative || [[ -n "$relative" ]]; do
-            [[ -n "$relative" && "$relative" != /* && "$relative" != .* &&
-               "$relative" != *'\'* ]] || {
+            [[ -n "$relative" && "$relative" != /* &&
+               "$relative" != .* && "$relative" != */ &&
+               "$relative" != *'\\'* && "$relative" != *'//'* ]] || {
                 printf 'Unsafe patch deletion path: %s\n' "$relative" >&2
                 return 1
             }
             IFS='/' read -r -a segments <<< "$relative"
             for segment in "${segments[@]}"; do
-                [[ -n "$segment" && "$segment" != . && "$segment" != .. &&
-                   "$segment" != .git ]] || {
+                [[ -n "$segment" && "$segment" != . &&
+                   "$segment" != .. && "$segment" != .git ]] || {
                     printf 'Unsafe patch deletion path: %s\n' "$relative" >&2
                     return 1
                 }
             done
+            if in_submodule "$relative"; then
+                printf 'Refusing deletion inside submodule: %s\n' "$relative" >&2
+                return 1
+            fi
             path="$(realpath -m -- "$project_root/$relative")"
             [[ "$path" == "$project_root/"* && ! -d "$path" ]] || {
-                printf 'Patch deletion escapes repository or names a directory: %s\n' "$relative" >&2
+                printf 'Unsafe patch deletion target: %s\n' "$relative" >&2
                 return 1
             }
-            entries+=("$path")
+            deletion_paths+=("$path")
         done < "$manifest"
-        for path in "${entries[@]}"; do
+
+        for path in "${deletion_paths[@]}"; do
             rm -f -- "$path"
         done
         rm -f -- "$manifest"
-        printf 'Removed %d obsolete file(s) listed by patch.\n' "${#entries[@]}"
+        printf 'Removed %d obsolete file(s) listed by patch.\n' "${#deletion_paths[@]}"
     }
 
-    if [[ $# -eq 1 && "$1" == "--finish" ]]; then
-        [[ -f "$manifest" ]] || { echo 'No pending patch deletions.'; exit 0; }
-        apply_deletions
-        exit 0
-    fi
-    if [[ $# -ne 1 ]]; then
-        printf 'Usage: %s /path/to/aowis-db-custom-<description>.zip | --finish\n' "${0##*/}" >&2
-        exit 2
-    fi
-
-    # Prevent cross-repository patch mixups. This repository accepts only patch
-    # archives specifically named for AOWIS-SERVER-DB_CUSTOM. Validate the archive
-    # basename, not its directory, before accessing or extracting any content.
-    patch_name="$(basename -- "$1")"
-    if [[ "$patch_name" != aowis-db-custom-*.zip ||
-          "$patch_name" == aowis-db-custom-.zip ]]; then
-        printf 'Refusing patch %s: expected aowis-db-custom-<description>.zip\n' "$patch_name" >&2
-        exit 1
-    fi
-
-    parent="$(dirname -- "$project_root")"
-    project_name="$(basename -- "$project_root")"
-    patch="$(realpath -- "$1")"
-
-    # Only accept archives containing paths inside this repository.
-    while IFS= read -r entry; do
-        if [[ "$entry" != "$project_name/"* || "$entry" == *'/../'* ||
-              "$entry" == *'/./'* || "$entry" == *'\\'* ]]; then
-            printf 'Invalid patch path: %s\n' "$entry" >&2
-            exit 1
+    if [[ $# -eq 1 && "$1" == '--finish' ]]; then
+        if [[ ! -e "$manifest" && ! -L "$manifest" ]]; then
+            printf 'No pending patch deletions.\n'
+            return 0
         fi
-    done < <(unzip -Z -1 "$patch")
+        apply_deletions
+        return
+    fi
 
-    unzip -q -o "$patch" -d "$parent"
+    if [[ $# -ne 1 ]]; then
+        printf 'Usage: %s /path/to/aowis-standalone-<description>.zip | --finish\n' "${0##*/}" >&2
+        return 2
+    fi
+    for tool in unzip touch; do
+        command -v "$tool" >/dev/null 2>&1 || {
+            printf 'Required tool is not installed: %s\n' "$tool" >&2
+            return 1
+        }
+    done
 
-    # ZIP timestamps reflect archive creation, not application. Refresh both
-    # sources and directories here so Ninja sees changes when applying a patch.
+    patch_name="$(basename -- "$1")"
+    # Distinct patch naming prevents accidentally applying DB_CUSTOM or GUI
+    # patches to the Standalone meta-repository.
+    if [[ "$patch_name" != aowis-standalone-*.zip ||
+          "$patch_name" == aowis-standalone-.zip ]]; then
+        printf 'Refusing patch %s: expected aowis-standalone-<description>.zip\n' "$patch_name" >&2
+        return 1
+    fi
+    patch="$(realpath -- "$1")"
+    [[ -f "$patch" ]] || {
+        printf 'Patch is not a file: %s\n' "$patch" >&2
+        return 1
+    }
+
+    # Reject archives that escape the checkout or overwrite Git metadata.
+    # ZIP member paths must have the same root as zip_standalone.sh produces.
+    unzip -tqq -- "$patch"
     while IFS= read -r entry; do
-        touch -c -m -- "$parent/$entry"
-    done < <(unzip -Z -1 "$patch")
+        [[ "$entry" == "$project_name/"* &&
+           "$entry" != *'\\'* &&
+           "$entry" != *$'\r'* &&
+           "$entry" != *'/../'* &&
+           "$entry" != *'/./'* &&
+           "$entry" != *'//'* ]] || {
+            printf 'Invalid patch path: %s\n' "$entry" >&2
+            return 1
+        }
+        relative="${entry#"$project_name"/}"
+        [[ -n "$relative" ]] || continue
+        IFS='/' read -r -a segments <<< "$relative"
+        for segment in "${segments[@]}"; do
+            [[ "$segment" != .git && "$segment" != .. && "$segment" != . ]] || {
+                printf 'Patch attempts to write protected path: %s\n' "$entry" >&2
+                return 1
+            }
+        done
+        if in_submodule "$relative"; then
+            printf 'Refusing patch entry inside submodule: %s\n' "$entry" >&2
+            return 1
+        fi
+        entries+=("$entry")
+    done < <(unzip -Z -1 -- "$patch")
+    [[ ${#entries[@]} -gt 0 ]] || {
+        printf 'Patch archive has no files.\n' >&2
+        return 1
+    }
 
+    unzip -q -o -- "$patch" -d "$project_parent"
+
+    # Unzip restores archived mtimes; refresh them so CMake/Ninja reliably
+    # notices modified sources even when the ZIP has older timestamps.
+    for entry in "${entries[@]}"; do
+        touch -c -m -- "$project_parent/$entry"
+    done
     apply_deletions
-    printf 'Applied %s with current file and directory timestamps.\n' "$patch"
+    printf 'Applied %s with fresh file timestamps.\n' "$patch"
 
-    # Refresh the project snapshot (db_custom.zip next to the repository) so
-    # the applied state can be shared for review without a separate step.
-    if ! "$script_dir/zip_db.sh"; then
-        printf 'Patch applied, but creating the project snapshot failed.\n' >&2
-        exit 1
+    # Snapshot the Standalone superproject only (no submodule contents).
+    if ! "$script_dir/zip_standalone.sh"; then
+        printf 'Patch was applied, but creating standalone.zip failed.\n' >&2
+        return 1
     fi
 }
 
-main "$@"; exit $?
+main "$@"
