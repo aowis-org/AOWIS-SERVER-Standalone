@@ -53,13 +53,13 @@ if(AOWIS_STANDALONE_WITH_DVMDB)
     # Its own nested Model submodule is deliberately not checked out/built.
     # A schema mismatch will fail configuration rather than silently mixing
     # two different Model revisions.
-    set(AOWIS_NATIVE_MODEL_SOURCE_DIR
+    set(AOWIS_DVMDB_MODEL_SOURCE_DIR
         "${CMAKE_CURRENT_SOURCE_DIR}/AOWIS-SERVER-GUI/external/AOWIS-SERVER-MODEL"
         CACHE PATH "Shared GUI Model source for DVMDB codec" FORCE)
-    set(AOWIS_NATIVE_WITH_MODEL_CODEC ON CACHE BOOL
+    set(AOWIS_DVMDB_WITH_MODEL_CODEC ON CACHE BOOL
         "Build DVMDB's canonical Model codec" FORCE)
     # Standalone embeds the database; the DVMDB HTTP daemon is not required.
-    set(AOWIS_NATIVE_WITH_HTTP_SERVER OFF CACHE BOOL
+    set(AOWIS_DVMDB_WITH_HTTP_SERVER OFF CACHE BOOL
         "Build DVMDB HTTP server" FORCE)
 
     # DVMDB has an extensive independent test suite. Do not register/build it
@@ -71,14 +71,14 @@ if(AOWIS_STANDALONE_WITH_DVMDB)
     set(BUILD_TESTING "${_aowis_saved_build_testing}")
     unset(_aowis_saved_build_testing)
 
-    if(NOT TARGET AOWIS::NativeProjectService OR NOT TARGET AOWIS::NativeHydraulic)
+    if(NOT TARGET AOWIS::DvmdbProjectService OR NOT TARGET AOWIS::DvmdbHydraulic)
         message(FATAL_ERROR "DVMDB native project/hydraulic targets were not created")
     endif()
     # Both embedded APIs are built alongside the GUI and reuse the single
     # AOWIS::Model target. This is a build integration, not yet GUI persistence UI.
     target_link_libraries(aowis-server-gui PRIVATE
-        AOWIS::NativeProjectService
-        AOWIS::NativeHydraulic)
+        AOWIS::DvmdbProjectService
+        AOWIS::DvmdbHydraulic)
     message(STATUS "Standalone DVMDB enabled: shared GUI Model target (single build)")
 elseif(WIN32)
     message(STATUS "Standalone DVMDB disabled for Windows (POSIX-only engine)")

@@ -20,13 +20,13 @@ Make sure you have checked out the Git submodules by running either:
 The GUI is configured before DVMDB. It owns the only `AOWIS::Model` /
 `AOWIS::ServerModel` target, located at
 `AOWIS-SERVER-GUI/external/AOWIS-SERVER-MODEL`. DVMDB's
-`AOWIS_NATIVE_MODEL_SOURCE_DIR` points to this same Model checkout. Its
+`AOWIS_DVMDB_MODEL_SOURCE_DIR` points to this same Model checkout. Its
 nested `external/AOWIS-SERVER-MODEL` submodule is **not initialized** by
 Standalone, so Model is neither checked out nor compiled twice. If DVMDB's
 canonical codec doesn't match the pinned GUI Model version, CMake stops with
 an explicit schema error; update the matching submodule revisions together.
 
-DVMDB's `AOWIS::NativeProjectService` and `AOWIS::NativeHydraulic` libraries
+DVMDB's `AOWIS::DvmdbProjectService` and `AOWIS::DvmdbHydraulic` libraries
 are built and linked into the standalone GUI. DVMDB's independent HTTP server,
 benchmark executables, and tests are not part of the default GUI build. This
 build-level linkage does not automatically replace the GUI's current project
