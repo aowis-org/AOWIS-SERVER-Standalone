@@ -4,3 +4,6 @@
 [submodule "AOWIS-SERVER-MAP"]
 	path = AOWIS-SERVER-MAP
 	url = https://github.com/aowis-org/AOWIS-SERVER-MAP.git
+[submodule "AOWIS-SERVER-DVMDB"]
+	path = AOWIS-SERVER-DVMDB
+	url = https://github.com/aowis-org/AOWIS-SERVER-DVMDB.git
