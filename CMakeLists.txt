@@ -58,9 +58,10 @@ if(AOWIS_STANDALONE_WITH_DVMDB)
         CACHE PATH "Shared GUI Model source for DVMDB codec" FORCE)
     set(AOWIS_DVMDB_WITH_MODEL_CODEC ON CACHE BOOL
         "Build DVMDB's canonical Model codec" FORCE)
-    # Standalone embeds the database; the DVMDB HTTP daemon is not required.
-    set(AOWIS_DVMDB_WITH_HTTP_SERVER OFF CACHE BOOL
-        "Build DVMDB HTTP server" FORCE)
+    # Use the same bounded, tested working-copy routes in a process-owned
+    # loopback transport; do not launch the standalone DVMDB daemon.
+    set(AOWIS_DVMDB_WITH_HTTP_SERVER ON CACHE BOOL
+        "Build DVMDB HTTP transport library" FORCE)
 
     # DVMDB has an extensive independent test suite. Do not register/build it
     # as part of the normal Standalone GUI build; the GUI/MAP test setting is
@@ -74,11 +75,33 @@ if(AOWIS_STANDALONE_WITH_DVMDB)
     if(NOT TARGET AOWIS::DvmdbProjectService OR NOT TARGET AOWIS::DvmdbHydraulic)
         message(FATAL_ERROR "DVMDB native project/hydraulic targets were not created")
     endif()
-    # Both embedded APIs are built alongside the GUI and reuse the single
-    # AOWIS::Model target. This is a build integration, not yet GUI persistence UI.
+    # The in-process HTTP adapter shares the same native Model and DVMDB
+    # service, so Standalone needs no separately started database daemon.
+    target_sources(aowis-server-gui PRIVATE
+        AOWIS-SERVER-GUI/src/projects/embedded_dvmdb_host.cpp)
     target_link_libraries(aowis-server-gui PRIVATE
         AOWIS::DvmdbProjectService
-        AOWIS::DvmdbHydraulic)
+        AOWIS::DvmdbHydraulic
+        aowis-dvmdb-http)
+    target_compile_definitions(aowis-server-gui PRIVATE AOWIS_STANDALONE_DVMDB_ENABLED)
+    if(BUILD_TESTING)
+        # Qt imported targets created in GUI's subdirectory are scoped there;
+        # the Standalone-level smoke-test target needs its own Qt import.
+        find_package(Qt6 REQUIRED COMPONENTS Core)
+        add_executable(aowis-standalone-embedded-dvmdb-tests
+            tests/embedded_dvmdb_host_tests.cpp
+            AOWIS-SERVER-GUI/src/projects/embedded_dvmdb_host.cpp)
+        target_include_directories(aowis-standalone-embedded-dvmdb-tests PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/AOWIS-SERVER-GUI/src")
+        target_compile_definitions(aowis-standalone-embedded-dvmdb-tests PRIVATE
+            AOWIS_STANDALONE_DVMDB_ENABLED)
+        target_link_libraries(aowis-standalone-embedded-dvmdb-tests PRIVATE
+            aowis-dvmdb-http Qt6::Core)
+        add_test(NAME aowis-standalone-embedded-dvmdb
+            COMMAND aowis-standalone-embedded-dvmdb-tests)
+        set_tests_properties(aowis-standalone-embedded-dvmdb PROPERTIES
+            LABELS "aowis;standalone;working-copy" TIMEOUT 30)
+    endif()
     message(STATUS "Standalone DVMDB enabled: shared GUI Model target (single build)")
 elseif(WIN32)
     message(STATUS "Standalone DVMDB disabled for Windows (POSIX-only engine)")

@@ -26,11 +26,30 @@ Standalone, so Model is neither checked out nor compiled twice. If DVMDB's
 canonical codec doesn't match the pinned GUI Model version, CMake stops with
 an explicit schema error; update the matching submodule revisions together.
 
-DVMDB's `AOWIS::DvmdbProjectService` and `AOWIS::DvmdbHydraulic` libraries
-are built and linked into the standalone GUI. DVMDB's independent HTTP server,
-benchmark executables, and tests are not part of the default GUI build. This
-build-level linkage does not automatically replace the GUI's current project
-persistence logic with DVMDB; UI/persistence wiring is separate work.
+DVMDB's native ProjectService, hydraulic codec and bounded HTTP routes are
+linked directly into the Standalone GUI. Standalone starts **no external DVMDB
+process**. Instead, the GUI owns a single in-process service and catalogue lock
+for every configured local DVMDB directory. It exposes a dynamically allocated
+`127.0.0.1` endpoint **only inside the running application** and uses the same
+validated project and working-copy routes as the standalone DVMDB server. The
+ephemeral endpoint is never stored in the database profile. Native sources,
+private drafts, network hydration and fenced autosave share this one owner;
+opening a second ProjectService on the same directory is forbidden.
+
+In Projects, select a local database and tick **Use as my personal working
+database**. The repository role and UUIDv7 are discovered/configured internally,
+without any input field. Create a project on that database and select **Edit
+network**. The editor initializes a private draft and autosaves supported
+hydraulic transactions. Reopening **Edit network** after an application restart
+loads the persisted candidate. Saving a draft is not yet a local Commit.
+
+This adapter requires Linux/POSIX DVMDB support; builds without DVMDB retain
+their existing project and map functionality. An internal loopback socket is
+used for protocol reuse and is accessible to other local processes; it is not
+a security boundary or an external server deployment. DVMDB's independent
+command-line daemon and benchmark executables are not part of the default
+Standalone build. A focused `aowis-standalone-embedded-dvmdb` smoke test
+checks identity, role selection, project creation and unborn draft reopening.
 
 The first run of `./git_submodule_init.sh` after applying a ZIP patch registers
 the DVMDB gitlink (Git cannot store a gitlink inside a ZIP). Review and commit
