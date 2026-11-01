@@ -6,6 +6,8 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
 cmake -S . -B build-linux -G Ninja -DCMAKE_COLOR_DIAGNOSTICS=ON
-cmake --build build-linux --parallel
+# Build only the Controller executable and its transitive dependencies.
+# A bare cmake --build would also build unrelated ALL targets, including tests.
+cmake --build build-linux --target aowis-server-gui --parallel
 
 ./build-linux/AOWIS-SERVER-GUI/aowis-server-gui
