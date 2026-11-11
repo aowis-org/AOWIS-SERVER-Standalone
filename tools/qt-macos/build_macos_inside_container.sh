@@ -38,6 +38,13 @@ if [ ! -x "$QT_HOST_PATH/libexec/uic" ]; then
     exit 1
 fi
 
+# The GUI compiles its .ts translation catalogues with the host lrelease.
+if [ ! -x "$QT_HOST_PATH/bin/lrelease" ]; then
+    echo "ERROR: Host Qt lrelease not found or not executable:"
+    echo "$QT_HOST_PATH/bin/lrelease"
+    exit 1
+fi
+
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 

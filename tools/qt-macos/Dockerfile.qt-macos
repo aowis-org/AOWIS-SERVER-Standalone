@@ -19,7 +19,7 @@ RUN python3 -m venv /opt/aqt-venv && \
     /opt/aqt-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
     /opt/aqt-venv/bin/pip install --no-cache-dir aqtinstall
 
-# Install Linux host Qt tools: moc, rcc, uic, etc.
+# Install Linux host Qt tools: moc, rcc, uic, lrelease (GUI .ts -> .qm), etc.
 RUN set -eux; \
     echo "Installing Linux host Qt into $QT_PATH/${QT_VERSION}/gcc_64"; \
     /opt/aqt-venv/bin/python -m aqt install-qt \
@@ -27,7 +27,8 @@ RUN set -eux; \
         linux desktop "$QT_VERSION" linux_gcc_64; \
     test -x "$QT_PATH/${QT_VERSION}/gcc_64/libexec/moc"; \
     test -x "$QT_PATH/${QT_VERSION}/gcc_64/libexec/rcc"; \
-    test -x "$QT_PATH/${QT_VERSION}/gcc_64/libexec/uic"
+    test -x "$QT_PATH/${QT_VERSION}/gcc_64/libexec/uic"; \
+    test -x "$QT_PATH/${QT_VERSION}/gcc_64/bin/lrelease"
 
 # Install extra macOS target Qt modules.
 RUN set -eux; \

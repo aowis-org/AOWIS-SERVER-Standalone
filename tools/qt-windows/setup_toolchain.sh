@@ -21,12 +21,18 @@ wineserver -w
 
 qt_bin="$qt_root/$AOWIS_QT_VERSION/mingw_64/bin"
 qt_cmake="$qt_root/$AOWIS_QT_VERSION/mingw_64/lib/cmake"
-for component in Qt6 Qt6Widgets Qt6Network Qt6Sql Qt6WebSockets Qt6HttpServer Qt6Positioning Qt6SerialPort; do
+# Qt6LinguistTools (from the default qttools archive) provides lrelease: the
+# GUI compiles its .ts catalogues at build time and no longer commits .qm.
+for component in Qt6 Qt6Widgets Qt6Network Qt6Sql Qt6WebSockets Qt6HttpServer Qt6Positioning Qt6SerialPort Qt6LinguistTools; do
     if [ ! -d "$qt_cmake/$component" ]; then
         printf 'Required Qt %s component is missing: %s\n' "$AOWIS_QT_VERSION" "$component" >&2
         exit 1
     fi
 done
+if [ ! -f "$qt_bin/lrelease.exe" ]; then
+    echo "Missing lrelease.exe in $qt_bin" >&2
+    exit 1
+fi
 if [ ! -f "$qt_bin/qt-cmake.bat" ] && [ ! -f "$qt_bin/qt-cmake.exe" ]; then
     echo "Missing qt-cmake launcher in $qt_bin" >&2
     exit 1
