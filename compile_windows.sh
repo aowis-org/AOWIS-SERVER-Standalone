@@ -3,10 +3,10 @@ set -euo pipefail
 
 echo "=== Starting Windows build using Docker ==="
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Standalone builds GUI's pinned CONFIG once and shares it with embedded MAP.
-# Initialize GUI's checkout before Docker, not the redundant MAP checkout.
-if [[ ! -f "$PROJECT_ROOT/AOWIS-SERVER-GUI/external/AOWIS-CONFIG/CMakeLists.txt" ]]; then
-    (cd "$PROJECT_ROOT/AOWIS-SERVER-GUI" && bash ./git_submodule_init.sh --config)
+# Ensure the nested MAP dependency is pinned and initialized before Docker
+# mounts the Standalone checkout. No Git operation on an already-populated tree.
+if [[ ! -f "$PROJECT_ROOT/AOWIS-SERVER-MAP/external/AOWIS-CONFIG/CMakeLists.txt" ]]; then
+    "$PROJECT_ROOT/tools/init_map_config_submodule.sh"
 fi
 
 SCRIPT_REL="tools/qt-windows/build_windows_inside_container.sh"
@@ -21,6 +21,7 @@ fi
 docker run --rm \
     -e AOWIS_WINDOWS_BUILD_JOBS="${AOWIS_WINDOWS_BUILD_JOBS:-}" \
     -v "$PROJECT_ROOT":/project \
+    -v aowis-windows-go-cache:/home/user/.cache/aowis-go \
     -w /project \
     "$WINDOWS_IMAGE" \
     /bin/bash "/project/$SCRIPT_REL"

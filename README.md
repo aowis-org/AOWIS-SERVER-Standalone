@@ -15,10 +15,11 @@ Make sure you have checked out the Git submodules by running either:
 * `./git_submodule_init.sh` to initialize the committed submodule versions and their required dependencies.
 * `./git_submodule_update.sh` to update the Standalone components and initialize their required dependencies.
 
-Standalone builds **one** AOWIS-CONFIG library, from the GUI's pinned
-`AOWIS-SERVER-GUI/external/AOWIS-CONFIG` checkout. Both GUI and embedded MAP
-link to that single target. MAP's nested CONFIG checkout is only needed when
-building MAP independently; it is not required by Standalone.
+Both scripts initialize MAP's nested `external/AOWIS-CONFIG` at the exact
+revision committed in AOWIS-SERVER-MAP, without updating CONFIG to a floating
+branch. Build scripts also initialize it if the checkout is missing. If MAP
+has a `.gitmodules` entry without a committed CONFIG gitlink, fix and commit
+the MAP repository first; Standalone cannot supply that missing pin.
 
 ### One shared Model build
 
@@ -87,6 +88,13 @@ Run:
 * macOS: `tools/qt-macos/docker_build.sh`
 
 This will pull a Docker container and install the required additional Qt dependencies inside it.
+
+The Windows image also contains Go and the MinGW-w64 cross compiler:
+`compile_windows.sh` cross-builds AOWIS-NETWORK's embedded WireGuard engine
+with them before the Wine/MinGW build and links it into the GUI. Go modules
+are cached in the Docker volume `aowis-windows-go-cache` (remove it with
+`docker volume rm aowis-windows-go-cache`). After pulling this change, rebuild
+the image once with `tools/qt-windows/docker_build.sh`; the Qt layers stay cached.
 
 #### Build for Windows / macOS using the prepared Docker Container
 

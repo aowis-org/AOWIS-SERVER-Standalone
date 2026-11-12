@@ -31,6 +31,31 @@ if [ -z "$TIFF_DLL" ]; then
     echo "  ./tools/qt-windows/docker_build.sh"
     exit 1
 fi
+# Embedded WireGuard engine: cross-built with Linux Go before CMake (Go is
+# not run under Wine) and linked by the GUI as a prebuilt C archive.
+NETWORK_DIR="AOWIS-SERVER-GUI/external/AOWIS-NETWORK"
+ENGINE_DIR="build-windows/aowis-wireguard"
+ENGINE_CC="x86_64-w64-mingw32-gcc-posix"
+if ! command -v go >/dev/null 2>&1 || ! command -v "$ENGINE_CC" >/dev/null 2>&1; then
+    echo "ERROR: Go or $ENGINE_CC is missing from the Docker image."
+    echo
+    echo "Rebuild the Windows build image from the repository root:"
+    echo "  ./tools/qt-windows/docker_build.sh"
+    exit 1
+fi
+if [ ! -f "$NETWORK_DIR/tools/build_wireguard_engine.sh" ]; then
+    echo "ERROR: $NETWORK_DIR is missing or too old (no tools/build_wireguard_engine.sh)."
+    echo "Run ./git_submodule_update.sh"
+    exit 1
+fi
+GOOS=windows GOARCH=amd64 CC="$ENGINE_CC" \
+    bash "$NETWORK_DIR/tools/build_wireguard_engine.sh" "$ENGINE_DIR"
+ENGINE_ARCHIVE="$(winepath -w "$PWD/$ENGINE_DIR/libaowis_wireguard.a" 2>/dev/null | tr '\\' '/')"
+if [ -z "$ENGINE_ARCHIVE" ]; then
+    echo "ERROR: cannot map $ENGINE_DIR/libaowis_wireguard.a to a Wine path."
+    exit 1
+fi
+
 HOST_JOBS="$(nproc)"
 WINDOWS_BUILD_JOBS="${AOWIS_WINDOWS_BUILD_JOBS:-}"
 if [ -z "$WINDOWS_BUILD_JOBS" ]; then
@@ -54,6 +79,7 @@ qt-cmake . \
   -B build-windows \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$WINDOWS_DEPS_PREFIX" \
+  -DAOWIS_NETWORK_WIREGUARD_ARCHIVE:FILEPATH="$ENGINE_ARCHIVE" \
   -DBUILD_TESTING=OFF
 BUILD_LOG="build-windows/aowis-windows-build.log"
 

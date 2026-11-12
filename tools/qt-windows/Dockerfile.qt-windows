@@ -96,3 +96,39 @@ RUN set -eux; \
     test -f "/home/user/.wine/drive_c/aowis-deps/include/tiffio.h"; \
     find "/home/user/.wine/drive_c/aowis-deps/lib" -maxdepth 1 -type f \( -iname '*tiff*.a' -o -iname '*tiff*.lib' \) -print -quit | grep -q .; \
     find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*tiff*.dll' -print -quit | grep -q .
+
+# Embedded WireGuard engine (AOWIS-NETWORK): Linux Go cross-builds it as a C
+# archive; its few cgo stubs are compiled by the MinGW-w64 cross compiler
+# (plain C ABI, MSVCRT and POSIX threads like Qt's GCC 15.1 MinGW). Running
+# Go itself under Wine is avoided. Appended last so Qt layers stay cached.
+ARG AOWIS_GO_VERSION=1.27.3
+USER root
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64-posix; \
+    rm -rf /var/lib/apt/lists/*; \
+    archive="go${AOWIS_GO_VERSION}.linux-amd64.tar.gz"; \
+    curl --fail --location --retry 4 --retry-delay 5 --silent --show-error \
+        -o "/tmp/$archive" "https://dl.google.com/go/$archive"; \
+    curl --fail --location --retry 4 --retry-delay 5 --silent --show-error \
+        -o "/tmp/$archive.sha256" "https://dl.google.com/go/$archive.sha256"; \
+    echo "$(tr -d ' \n' < "/tmp/$archive.sha256")  /tmp/$archive" | sha256sum -c -; \
+    tar -C /usr/local -xzf "/tmp/$archive"; \
+    rm -f "/tmp/$archive" "/tmp/$archive.sha256"; \
+    mkdir -p /home/user/.cache/aowis-go; \
+    chown -R user:user /home/user/.cache
+# Module and build caches live in one directory that compile_windows.sh mounts
+# as a named volume, so dependencies are downloaded once, not per build.
+ENV PATH=/usr/local/go/bin:${PATH} \
+    GOTOOLCHAIN=local \
+    GOPATH=/home/user/.cache/aowis-go/path \
+    GOMODCACHE=/home/user/.cache/aowis-go/mod \
+    GOCACHE=/home/user/.cache/aowis-go/build
+USER user
+# Fail now if the cross compiler targets UCRT: its objects would not link
+# against Qt's MSVCRT runtime.
+RUN set -eux; \
+    go version; \
+    printf '#include <stdio.h>\n#ifdef _UCRT\n#error UCRT runtime\n#endif\nint main(void){return puts("ok");}\n' > /tmp/crt.c; \
+    x86_64-w64-mingw32-gcc-posix -c /tmp/crt.c -o /tmp/crt.o; \
+    rm -f /tmp/crt.c /tmp/crt.o
