@@ -22,8 +22,10 @@ if [ ! -f "$WINDOWS_DEPS_INCLUDE/tiffio.h" ]; then
     echo "  ./tools/qt-windows/docker_build.sh"
     exit 1
 fi
-if [ ! -f "$WINDOWS_DEPS_INCLUDE/png.h" ]; then
-    echo "ERROR: Windows libpng is missing from the Docker image."
+if [ ! -f "$WINDOWS_DEPS_INCLUDE/png.h" ] \
+    || [ ! -f "$WINDOWS_DEPS_INCLUDE/turbojpeg.h" ] \
+    || [ ! -f "$WINDOWS_DEPS_INCLUDE/zstd.h" ]; then
+    echo "ERROR: Windows libpng, libjpeg-turbo or zstd is missing from the Docker image."
     echo
     echo "Rebuild the Windows build image from the repository root:"
     echo "  ./tools/qt-windows/docker_build.sh"
@@ -150,7 +152,7 @@ fi
 echo "Found GUI executable: $EXE"
 
 cp "$EXE" build-windows/deploy/
-# libtiff, libpng and zlib are built for the Windows target into C:/aowis-deps by
+# zlib, libtiff, libpng, libjpeg-turbo and zstd are built for the Windows target into C:/aowis-deps by
 # Dockerfile.qt-windows. Ship every runtime DLL from that private prefix.
 find "$WINDOWS_DEPS_BIN" \
     -maxdepth 1 \

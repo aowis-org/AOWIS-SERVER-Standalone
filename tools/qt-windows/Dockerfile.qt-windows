@@ -11,6 +11,8 @@ ARG AOWIS_AQT_GIT_REF=8c3695d
 ARG AOWIS_ZLIB_VERSION=1.3.2
 ARG AOWIS_TIFF_VERSION=4.7.2
 ARG AOWIS_PNG_VERSION=1.6.50
+ARG AOWIS_TURBOJPEG_VERSION=3.1.1
+ARG AOWIS_ZSTD_VERSION=1.5.7
 ARG AOWIS_WINDOWS_DEPS_PREFIX=C:/aowis-deps
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -103,7 +105,7 @@ RUN set -eux; \
 RUN set -eux; \
     git clone --depth 1 --branch "v${AOWIS_PNG_VERSION}" https://github.com/pnggroup/libpng.git /home/user/aowis-libpng; \
     cd /home/user/aowis-libpng; \
-    echo "libpng v${AOWIS_PNG_VERSION} at $(git rev-parse HEAD)"; \
+    test "$(git rev-parse HEAD)" = "2b978915d82377df13fcbb1fb56660195ded868a"; \
     qt-cmake . \
         -G Ninja \
         -B build-windows \
@@ -121,6 +123,55 @@ RUN set -eux; \
     test -f "/home/user/.wine/drive_c/aowis-deps/include/png.h"; \
     find "/home/user/.wine/drive_c/aowis-deps/lib" -maxdepth 1 -type f -iname '*png*.a' -print -quit | grep -q .; \
     find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*png*.dll' -print -quit | grep -q .
+
+# libjpeg-turbo (TurboJPEG API) for AOWIS-SERVER-MAP's raster transfer.
+# SIMD is off: it needs NASM for Windows under Wine; the C path is correct,
+# only slower at JPEG encode/decode.
+RUN set -eux; \
+    git clone --depth 1 --branch "${AOWIS_TURBOJPEG_VERSION}" https://github.com/libjpeg-turbo/libjpeg-turbo.git /home/user/aowis-libjpeg-turbo; \
+    cd /home/user/aowis-libjpeg-turbo; \
+    echo "libjpeg-turbo ${AOWIS_TURBOJPEG_VERSION} at $(git rev-parse HEAD)"; \
+    qt-cmake . \
+        -G Ninja \
+        -B build-windows \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$AOWIS_WINDOWS_DEPS_PREFIX" \
+        -DENABLE_SHARED=ON \
+        -DENABLE_STATIC=OFF \
+        -DWITH_TURBOJPEG=ON \
+        -DWITH_SIMD=OFF; \
+    cmake --build build-windows --parallel "$(nproc)"; \
+    cmake --install build-windows; \
+    cd /home/user; \
+    rm -rf /home/user/aowis-libjpeg-turbo; \
+    test -f "/home/user/.wine/drive_c/aowis-deps/include/turbojpeg.h"; \
+    find "/home/user/.wine/drive_c/aowis-deps/lib" -maxdepth 1 -type f -iname '*turbojpeg*.a' -print -quit | grep -q .; \
+    find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*turbojpeg*.dll' -print -quit | grep -q .
+
+# zstd for AOWIS-SERVER-MAP's terrain transfer. Its CMake package
+# (zstd::libzstd_shared) is what MAP finds here: pkg-config does not run
+# under Wine.
+RUN set -eux; \
+    git clone --depth 1 --branch "v${AOWIS_ZSTD_VERSION}" https://github.com/facebook/zstd.git /home/user/aowis-zstd; \
+    cd /home/user/aowis-zstd; \
+    echo "zstd v${AOWIS_ZSTD_VERSION} at $(git rev-parse HEAD)"; \
+    qt-cmake build/cmake \
+        -G Ninja \
+        -B build-windows \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$AOWIS_WINDOWS_DEPS_PREFIX" \
+        -DZSTD_BUILD_SHARED=ON \
+        -DZSTD_BUILD_STATIC=OFF \
+        -DZSTD_BUILD_PROGRAMS=OFF \
+        -DZSTD_BUILD_TESTS=OFF \
+        -DZSTD_BUILD_CONTRIB=OFF; \
+    cmake --build build-windows --parallel "$(nproc)"; \
+    cmake --install build-windows; \
+    cd /home/user; \
+    rm -rf /home/user/aowis-zstd; \
+    test -f "/home/user/.wine/drive_c/aowis-deps/include/zstd.h"; \
+    find "/home/user/.wine/drive_c/aowis-deps/lib/cmake" -maxdepth 2 -type f -iname 'zstdConfig.cmake' -print -quit | grep -q .; \
+    find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*zstd*.dll' -print -quit | grep -q .
 
 # Embedded WireGuard engine (AOWIS-NETWORK): Linux Go cross-builds it as a C
 # archive; its few cgo stubs are compiled by the MinGW-w64 cross compiler
