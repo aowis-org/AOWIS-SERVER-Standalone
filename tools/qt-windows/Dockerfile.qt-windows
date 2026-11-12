@@ -10,6 +10,7 @@ ARG AOWIS_MINGW_VERSION=15.1.0
 ARG AOWIS_AQT_GIT_REF=8c3695d
 ARG AOWIS_ZLIB_VERSION=1.3.2
 ARG AOWIS_TIFF_VERSION=4.7.2
+ARG AOWIS_PNG_VERSION=1.6.50
 ARG AOWIS_WINDOWS_DEPS_PREFIX=C:/aowis-deps
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -96,6 +97,30 @@ RUN set -eux; \
     test -f "/home/user/.wine/drive_c/aowis-deps/include/tiffio.h"; \
     find "/home/user/.wine/drive_c/aowis-deps/lib" -maxdepth 1 -type f \( -iname '*tiff*.a' -o -iname '*tiff*.lib' \) -print -quit | grep -q .; \
     find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*tiff*.dll' -print -quit | grep -q .
+
+# libpng for AOWIS-SERVER-MAP (find_package(PNG)), against the zlib above.
+# Shared like zlib/libtiff; its DLL ships with the GUI via C:/aowis-deps/bin.
+RUN set -eux; \
+    git clone --depth 1 --branch "v${AOWIS_PNG_VERSION}" https://github.com/pnggroup/libpng.git /home/user/aowis-libpng; \
+    cd /home/user/aowis-libpng; \
+    echo "libpng v${AOWIS_PNG_VERSION} at $(git rev-parse HEAD)"; \
+    qt-cmake . \
+        -G Ninja \
+        -B build-windows \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="$AOWIS_WINDOWS_DEPS_PREFIX" \
+        -DCMAKE_PREFIX_PATH="$AOWIS_WINDOWS_DEPS_PREFIX" \
+        -DPNG_SHARED=ON \
+        -DPNG_STATIC=OFF \
+        -DPNG_TESTS=OFF \
+        -DPNG_TOOLS=OFF; \
+    cmake --build build-windows --parallel "$(nproc)"; \
+    cmake --install build-windows; \
+    cd /home/user; \
+    rm -rf /home/user/aowis-libpng; \
+    test -f "/home/user/.wine/drive_c/aowis-deps/include/png.h"; \
+    find "/home/user/.wine/drive_c/aowis-deps/lib" -maxdepth 1 -type f -iname '*png*.a' -print -quit | grep -q .; \
+    find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*png*.dll' -print -quit | grep -q .
 
 # Embedded WireGuard engine (AOWIS-NETWORK): Linux Go cross-builds it as a C
 # archive; its few cgo stubs are compiled by the MinGW-w64 cross compiler

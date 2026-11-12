@@ -22,6 +22,13 @@ if [ ! -f "$WINDOWS_DEPS_INCLUDE/tiffio.h" ]; then
     echo "  ./tools/qt-windows/docker_build.sh"
     exit 1
 fi
+if [ ! -f "$WINDOWS_DEPS_INCLUDE/png.h" ]; then
+    echo "ERROR: Windows libpng is missing from the Docker image."
+    echo
+    echo "Rebuild the Windows build image from the repository root:"
+    echo "  ./tools/qt-windows/docker_build.sh"
+    exit 1
+fi
 TIFF_DLL="$(find "$WINDOWS_DEPS_BIN" -maxdepth 1 -type f -iname '*tiff*.dll' -print -quit)"
 if [ -z "$TIFF_DLL" ]; then
     echo "ERROR: Windows libtiff runtime DLL is missing from the Docker image:"
@@ -143,7 +150,7 @@ fi
 echo "Found GUI executable: $EXE"
 
 cp "$EXE" build-windows/deploy/
-# libtiff and zlib are built for the Windows target into C:/aowis-deps by
+# libtiff, libpng and zlib are built for the Windows target into C:/aowis-deps by
 # Dockerfile.qt-windows. Ship every runtime DLL from that private prefix.
 find "$WINDOWS_DEPS_BIN" \
     -maxdepth 1 \
