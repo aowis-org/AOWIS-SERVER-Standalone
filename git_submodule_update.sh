@@ -18,6 +18,9 @@ git submodule update --init --remote --jobs 8 -- \
     ./git_submodule_init.sh
 )
 
+# GUI's init script checked out its pinned CONFIG; MAP reuses that target
+# during Standalone CMake configuration.
+
 git submodule status
 printf '\nReview and commit updated Standalone gitlinks, then configure/build.\n'
 printf 'DVMDB reuses GUI\047s pinned Model; the codec check will reject incompatible revisions.\n'

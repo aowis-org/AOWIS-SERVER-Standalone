@@ -3,6 +3,12 @@ set -euo pipefail
 
 echo "=== Starting Windows build using Docker ==="
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Standalone builds GUI's pinned CONFIG once and shares it with embedded MAP.
+# Initialize GUI's checkout before Docker, not the redundant MAP checkout.
+if [[ ! -f "$PROJECT_ROOT/AOWIS-SERVER-GUI/external/AOWIS-CONFIG/CMakeLists.txt" ]]; then
+    (cd "$PROJECT_ROOT/AOWIS-SERVER-GUI" && bash ./git_submodule_init.sh --config)
+fi
+
 SCRIPT_REL="tools/qt-windows/build_windows_inside_container.sh"
 WINDOWS_IMAGE="aowis-qt-windows:6.12.0-mingw15"
 

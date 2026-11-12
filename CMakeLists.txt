@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.22)
 
 project(AOWIS-SERVER-Standalone LANGUAGES CXX)
 
+include(CTest)
+
 # GUI, MODEL, MAP, and DVMDB all use C++20.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -31,6 +33,22 @@ if(AOWIS_STANDALONE_WITH_DVMDB AND WIN32)
         "for the GUI/MAP-only Windows build.")
 endif()
 
+# In Standalone, GUI owns the single AOWIS-CONFIG build. Register its pinned
+# checkout before MAP so MAP can reuse aowis::config without compiling its
+# separate nested CONFIG checkout. GUI also reuses the already-created target.
+set(_aowis_gui_config_source
+    "${CMAKE_CURRENT_SOURCE_DIR}/AOWIS-SERVER-GUI/external/AOWIS-CONFIG")
+if(NOT EXISTS "${_aowis_gui_config_source}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "GUI's pinned AOWIS-CONFIG checkout is missing. Run "
+        "./git_submodule_init.sh (or ./git_submodule_update.sh).")
+endif()
+add_subdirectory("${_aowis_gui_config_source}"
+    "${CMAKE_CURRENT_BINARY_DIR}/aowis-config" EXCLUDE_FROM_ALL)
+if(NOT TARGET aowis::config)
+    message(FATAL_ERROR "The GUI AOWIS-CONFIG checkout did not provide aowis::config")
+endif()
+
 add_subdirectory(AOWIS-SERVER-MAP)
 
 # GUI owns the *only* Model CMake target. DVMDB must be added afterwards:
@@ -42,6 +60,15 @@ endif()
 
 target_compile_definitions(aowis-server-gui PRIVATE AOWIS_STANDALONE)
 target_link_libraries(aowis-server-gui PRIVATE aowis-server-map-core)
+
+# MAP and GUI must reuse the exact CONFIG target created from GUI's pin.
+get_target_property(_aowis_config_owner aowis-config SOURCE_DIR)
+if(NOT _aowis_config_owner STREQUAL _aowis_gui_config_source)
+    message(FATAL_ERROR
+        "Standalone must use GUI's pinned AOWIS-CONFIG, got ${_aowis_config_owner}")
+endif()
+unset(_aowis_config_owner)
+unset(_aowis_gui_config_source)
 
 if(AOWIS_STANDALONE_WITH_DVMDB)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/AOWIS-SERVER-DVMDB/CMakeLists.txt")

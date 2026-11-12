@@ -15,6 +15,11 @@ Make sure you have checked out the Git submodules by running either:
 * `./git_submodule_init.sh` to initialize the committed submodule versions and their required dependencies.
 * `./git_submodule_update.sh` to update the Standalone components and initialize their required dependencies.
 
+Standalone builds **one** AOWIS-CONFIG library, from the GUI's pinned
+`AOWIS-SERVER-GUI/external/AOWIS-CONFIG` checkout. Both GUI and embedded MAP
+link to that single target. MAP's nested CONFIG checkout is only needed when
+building MAP independently; it is not required by Standalone.
+
 ### One shared Model build
 
 The GUI is configured before DVMDB. It owns the only `AOWIS::Model` /

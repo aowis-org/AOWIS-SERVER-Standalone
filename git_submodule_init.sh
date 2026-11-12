@@ -31,4 +31,7 @@ git submodule update --init --jobs 8 -- AOWIS-SERVER-GUI AOWIS-SERVER-MAP "$dvmd
     ./git_submodule_init.sh
 )
 
+# Standalone uses GUI's pinned CONFIG for both GUI and MAP. MAP's own
+# nested CONFIG checkout is only needed when MAP is built independently.
+
 git submodule status
