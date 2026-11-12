@@ -91,10 +91,10 @@ This will pull a Docker container and install the required additional Qt depende
 
 The Windows image also contains Go and the MinGW-w64 cross compiler:
 `compile_windows.sh` cross-builds AOWIS-NETWORK's embedded WireGuard engine
-with them before the Wine/MinGW build and links it into the GUI. Its Go
-modules are downloaded on the host (`go` must be installed there) and the
-host module cache is mounted, so the container needs no network; Go's build
-cache lives in the Docker volume `aowis-windows-go-cache`. After pulling this change, rebuild
+with them before the Wine/MinGW build and links it into the GUI. The build
+container uses host networking; Go modules and Go's build cache live in the
+Docker volume `aowis-windows-go-cache`. The image also carries a Windows
+Python (embeddable package) for MODEL's configure-time codec check. After pulling this change, rebuild
 the image once with `tools/qt-windows/docker_build.sh`; the Qt layers stay cached.
 
 #### Build for Windows / macOS using the prepared Docker Container

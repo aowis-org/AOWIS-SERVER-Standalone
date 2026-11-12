@@ -13,6 +13,7 @@ ARG AOWIS_TIFF_VERSION=4.7.2
 ARG AOWIS_PNG_VERSION=1.6.50
 ARG AOWIS_TURBOJPEG_VERSION=3.1.1
 ARG AOWIS_ZSTD_VERSION=1.5.7
+ARG AOWIS_PYTHON_VERSION=3.12.10
 ARG AOWIS_WINDOWS_DEPS_PREFIX=C:/aowis-deps
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -172,6 +173,20 @@ RUN set -eux; \
     test -f "/home/user/.wine/drive_c/aowis-deps/include/zstd.h"; \
     find "/home/user/.wine/drive_c/aowis-deps/lib/cmake" -maxdepth 2 -type f -iname 'zstdConfig.cmake' -print -quit | grep -q .; \
     find "/home/user/.wine/drive_c/aowis-deps/bin" -maxdepth 1 -type f -iname '*zstd*.dll' -print -quit | grep -q .
+
+# Windows Python for configure-time generators run by the Windows CMake
+# (MODEL's check_model_codec.py: stdlib only). The embeddable package needs
+# no installer; build_windows_inside_container.sh passes it as
+# Python3_EXECUTABLE.
+RUN set -eux; \
+    archive="python-${AOWIS_PYTHON_VERSION}-embed-amd64.zip"; \
+    curl --fail --location --retry 4 --retry-delay 5 --silent --show-error \
+        -o "/tmp/$archive" "https://www.python.org/ftp/python/${AOWIS_PYTHON_VERSION}/$archive"; \
+    sha256sum "/tmp/$archive"; \
+    mkdir -p /home/user/.wine/drive_c/aowis-python; \
+    python3 -m zipfile -e "/tmp/$archive" /home/user/.wine/drive_c/aowis-python; \
+    rm -f "/tmp/$archive"; \
+    wine C:/aowis-python/python.exe -c "import argparse, json, pathlib, re, sys; print(sys.version)"
 
 # Embedded WireGuard engine (AOWIS-NETWORK): Linux Go cross-builds it as a C
 # archive; its few cgo stubs are compiled by the MinGW-w64 cross compiler

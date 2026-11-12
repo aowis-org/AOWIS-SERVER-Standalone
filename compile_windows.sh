@@ -18,29 +18,12 @@ if ! docker image inspect "$WINDOWS_IMAGE" >/dev/null 2>&1; then
     exit 1
 fi
 
-# The WireGuard engine's Go modules are fetched on the host (normal host
-# network/DNS, usually already cached by Linux builds) and the host module
-# cache is mounted; the container builds with GOPROXY=off and needs no network.
-NETWORK_BRIDGE="$PROJECT_ROOT/AOWIS-SERVER-GUI/external/AOWIS-NETWORK/bridge"
-if ! command -v go >/dev/null 2>&1; then
-    echo "Go is required on the host to fetch the WireGuard engine's modules." >&2
-    exit 1
-fi
-if [[ ! -f "$NETWORK_BRIDGE/go.mod" ]]; then
-    echo "Missing $NETWORK_BRIDGE/go.mod; run ./git_submodule_update.sh" >&2
-    exit 1
-fi
-echo "=== Fetching WireGuard engine Go modules on the host ==="
-(cd "$NETWORK_BRIDGE" && GOWORK=off GOFLAGS=-mod=readonly go mod download)
-HOST_GOMODCACHE="$(go env GOMODCACHE)"
-
+# Host networking: Docker's bridge DNS times out on this LAN (Go module
+# downloads); the image build uses --network=host for the same reason.
 docker run --rm \
+    --network host \
     -e AOWIS_WINDOWS_BUILD_JOBS="${AOWIS_WINDOWS_BUILD_JOBS:-}" \
-    -e GOMODCACHE=/home/user/go-mod \
-    -e GOPROXY=off \
-    -e GOFLAGS=-mod=readonly \
     -v "$PROJECT_ROOT":/project \
-    -v "$HOST_GOMODCACHE":/home/user/go-mod \
     -v aowis-windows-go-cache:/home/user/.cache/aowis-go \
     -w /project \
     "$WINDOWS_IMAGE" \

@@ -22,6 +22,14 @@ if [ ! -f "$WINDOWS_DEPS_INCLUDE/tiffio.h" ]; then
     echo "  ./tools/qt-windows/docker_build.sh"
     exit 1
 fi
+WINDOWS_PYTHON="C:/aowis-python/python.exe"
+if [ ! -f /home/user/.wine/drive_c/aowis-python/python.exe ]; then
+    echo "ERROR: Windows Python is missing from the Docker image."
+    echo
+    echo "Rebuild the Windows build image from the repository root:"
+    echo "  ./tools/qt-windows/docker_build.sh"
+    exit 1
+fi
 if [ ! -f "$WINDOWS_DEPS_INCLUDE/png.h" ] \
     || [ ! -f "$WINDOWS_DEPS_INCLUDE/turbojpeg.h" ] \
     || [ ! -f "$WINDOWS_DEPS_INCLUDE/zstd.h" ]; then
@@ -89,6 +97,7 @@ qt-cmake . \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_PREFIX_PATH="$WINDOWS_DEPS_PREFIX" \
   -DAOWIS_NETWORK_WIREGUARD_ARCHIVE:FILEPATH="$ENGINE_ARCHIVE" \
+  -DPython3_EXECUTABLE:FILEPATH="$WINDOWS_PYTHON" \
   -DBUILD_TESTING=OFF
 BUILD_LOG="build-windows/aowis-windows-build.log"
 
