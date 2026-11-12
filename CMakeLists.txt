@@ -135,3 +135,42 @@ elseif(WIN32)
 elseif(APPLE)
     message(STATUS "Standalone DVMDB disabled for macOS by default (target OpenSSL not provisioned)")
 endif()
+
+# Exercise the real embedded MAP library end-to-end: discover an inherited
+# layer from authenticated peers, honor its route, persist its raster tiles,
+# restart offline, and enforce local disablement before cache access.
+# This deliberately does not launch a GUI or claim to test GPU rendering.
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Core Network)
+    add_executable(aowis-standalone-map-inherited-tile-runtime-tests
+        tests/map_inherited_tile_runtime_tests.cpp)
+    target_link_libraries(aowis-standalone-map-inherited-tile-runtime-tests PRIVATE
+        aowis-server-map-core Qt6::Core Qt6::Network)
+    add_test(NAME aowis-standalone-map-inherited-tile-runtime
+        COMMAND aowis-standalone-map-inherited-tile-runtime-tests)
+    set_tests_properties(aowis-standalone-map-inherited-tile-runtime PROPERTIES
+        LABELS "aowis;standalone;map;cascading" TIMEOUT 30)
+endif()
+
+# Build/link every Standalone-relevant test before CTest runs. GUI's aowis-tests
+# target includes its complete executable and test suite (including the
+# Standalone MAP provider bridge); MAP's aggregate covers the embedded map
+# library tests. DVMDB's independent daemon tests stay in its own repository.
+if(BUILD_TESTING)
+    if(NOT TARGET aowis-tests OR NOT TARGET aowis-server-map-tests)
+        message(FATAL_ERROR
+            "Standalone needs GUI and MAP test aggregate targets when BUILD_TESTING=ON")
+    endif()
+    add_custom_target(aowis-standalone-tests)
+    add_dependencies(aowis-standalone-tests
+        aowis-tests
+        aowis-server-map-tests
+        aowis-standalone-map-inherited-tile-runtime-tests)
+    if(AOWIS_STANDALONE_WITH_DVMDB)
+        if(NOT TARGET aowis-standalone-embedded-dvmdb-tests)
+            message(FATAL_ERROR "Standalone embedded DVMDB test target is missing")
+        endif()
+        add_dependencies(aowis-standalone-tests
+            aowis-standalone-embedded-dvmdb-tests)
+    endif()
+endif()

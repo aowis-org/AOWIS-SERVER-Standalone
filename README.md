@@ -74,6 +74,41 @@ libraries (`libssl-dev` on Debian/Ubuntu), libtiff, a C++20 compiler, CMake,
 Ninja and Python 3. DVMDB is enabled by default on POSIX systems; pass
 `-DAOWIS_STANDALONE_WITH_DVMDB=OFF` to CMake for a GUI/MAP-only build.
 
+### Linux test suite
+
+Run `./compile_linux_tests.sh` to configure, build and test Standalone using
+`build-linux-tests/` (separate from the normal `build-linux/` executable build).
+The script also supports `--debug`, `--release`, and `--both`, using separate
+build directories for each explicit configuration.
+
+Unlike `./compile_linux.sh`, which builds and launches only the GUI executable,
+the test script builds the **full Standalone GUI** and all GUI, MAP-library and
+Standalone-specific test binaries before invoking CTest. It uses GUI's CTest
+preflight to reject missing executables instead of accidentally running stale
+tests. Any failed configuration, build, or test produces a nonzero exit status.
+
+The inherited suite includes GUI/Render tests, MAP's embedded-library tests,
+the `aowis-standalone-map-provider-bridge` test, and (when embedded DVMDB is
+enabled) `aowis-standalone-embedded-dvmdb`. Standalone intentionally builds
+neither the standalone MAP REST daemon nor DVMDB's separate daemon suite; run
+those repositories' own `compile_linux_tests.sh` to validate those components.
+
+Standalone also registers `aowis-standalone-map-inherited-tile-runtime`. It uses
+local authenticated HTTP MAP peers to verify a selected inherited provider,
+CONFIG-backed routing, durable raster-cache reuse after an offline restart,
+prohibited direct-origin fallback and cache denial while disabled. It makes
+**no external requests** and is independent of a display/GPU. A passing result
+does **not** prove the GUI visibly rendered the imagery; verify that separately
+in the running Standalone app.
+
+To repeat a focused test after building the suite:
+
+```sh
+ctest --test-dir build-linux-tests --output-on-failure \
+  -R '^aowis-standalone-map-provider-bridge$'
+```
+
+
 ### Windows / macOS
 
 For cross-compiling from Linux, you can use a Docker-based setup.
