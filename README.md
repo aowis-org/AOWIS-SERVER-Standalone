@@ -49,8 +49,10 @@ network**. The editor initializes a private draft and autosaves supported
 hydraulic transactions. Reopening **Edit network** after an application restart
 loads the persisted candidate. Saving a draft is not yet a local Commit.
 
-This adapter requires Linux/POSIX DVMDB support; builds without DVMDB retain
-their existing project and map functionality. An internal loopback socket is
+The embedded database is built on Linux, Windows and macOS (DVMDB's platform
+layer, `src/dvmdb_sys.h`); builds with `-DAOWIS_STANDALONE_WITH_DVMDB=OFF`
+retain their existing project and map functionality. On Windows the DVMDB data
+directory must be on NTFS/ReFS (the default under `%LOCALAPPDATA%` is). An internal loopback socket is
 used for protocol reuse and is accessible to other local processes; it is not
 a security boundary or an external server deployment. DVMDB's independent
 command-line daemon and benchmark executables are not part of the default
@@ -71,7 +73,7 @@ After that, you can compile the project by running:
 
 from the project root. Install Qt 6 development packages, OpenSSL development
 libraries (`libssl-dev` on Debian/Ubuntu), libtiff, a C++20 compiler, CMake,
-Ninja and Python 3. DVMDB is enabled by default on POSIX systems; pass
+Ninja and Python 3. DVMDB is enabled by default on every platform; pass
 `-DAOWIS_STANDALONE_WITH_DVMDB=OFF` to CMake for a GUI/MAP-only build.
 
 ### Linux test suite
@@ -113,7 +115,10 @@ ctest --test-dir build-linux-tests --output-on-failure \
 
 For cross-compiling from Linux, you can use a Docker-based setup.
 
-The existing GUI/MAP Windows cross-build remains available, but DVMDB is **disabled by default on Windows**: its POSIX `flock`, `mmap`, and filesystem calls need a Windows port. Enabling DVMDB there intentionally raises a CMake error instead of silently creating a broken build. On macOS, DVMDB is **disabled by default**, preserving the existing cross-build: enabling it needs **target-side OpenSSL Crypto** development libraries, which the current Dockerfile does not provision. The previous Intel-mac-only limitation still applies. A complete macOS/DVMDB cross-build is not yet verified.
+Both cross-builds include the embedded DVMDB. Windows and macOS use DVMDB's
+built-in SHA-256, so neither Docker image needs a target-side OpenSSL; the
+Windows build links only the system `bcrypt` and `ws2_32` libraries in
+addition. The previous Intel-mac-only limitation still applies.
 
 #### Prepare the Docker Container
 

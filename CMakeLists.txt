@@ -14,24 +14,11 @@ set(AOWIS_STANDALONE_BUILD ON CACHE BOOL "Build AOWIS standalone GUI")
 set(AOWIS_SERVER_MAP_BUILD_SERVER OFF CACHE BOOL
     "Build AOWIS map REST server executable" FORCE)
 
-# DVMDB's storage layer uses POSIX APIs (flock, mmap, fsync, etc.), so it
-# cannot currently be cross-compiled as-is for Windows/MinGW.
-if(WIN32 OR APPLE)
-    # Keep existing Windows/macOS cross-builds working until native DVMDB
-    # and target-side OpenSSL have been qualified with those toolchains.
-    set(_aowis_dvmdb_default OFF)
-else()
-    set(_aowis_dvmdb_default ON)
-endif()
+# DVMDB's engine reaches the filesystem only through its platform layer
+# (src/dvmdb_sys.h): libc on Linux/macOS, Win32 handles on Windows. Windows
+# and macOS use its built-in SHA-256, so no target-side OpenSSL is needed.
 option(AOWIS_STANDALONE_WITH_DVMDB
-    "Build and link the DVMDB embedded storage/model libraries"
-    ${_aowis_dvmdb_default})
-if(AOWIS_STANDALONE_WITH_DVMDB AND WIN32)
-    message(FATAL_ERROR
-        "AOWIS-SERVER-DVMDB currently requires POSIX filesystem APIs and "
-        "cannot be built for Windows. Use -DAOWIS_STANDALONE_WITH_DVMDB=OFF "
-        "for the GUI/MAP-only Windows build.")
-endif()
+    "Build and link the DVMDB embedded storage/model libraries" ON)
 
 # In Standalone, GUI owns the single AOWIS-CONFIG build. Register its pinned
 # checkout before MAP so MAP can reuse aowis::config without compiling its
@@ -130,10 +117,8 @@ if(AOWIS_STANDALONE_WITH_DVMDB)
             LABELS "aowis;standalone;working-copy" TIMEOUT 30)
     endif()
     message(STATUS "Standalone DVMDB enabled: shared GUI Model target (single build)")
-elseif(WIN32)
-    message(STATUS "Standalone DVMDB disabled for Windows (POSIX-only engine)")
-elseif(APPLE)
-    message(STATUS "Standalone DVMDB disabled for macOS by default (target OpenSSL not provisioned)")
+else()
+    message(STATUS "Standalone DVMDB disabled by configuration")
 endif()
 
 # Exercise the real embedded MAP library end-to-end: discover an inherited
