@@ -42,12 +42,14 @@ ephemeral endpoint is never stored in the database profile. Native sources,
 private drafts, network hydration and fenced autosave share this one owner;
 opening a second ProjectService on the same directory is forbidden.
 
-On every platform the built-in **Local database** (under the platform's
-generic data location, `aowis-standalone-dvmdb`) is the personal working
-database by default: on first start, if no other database is personal, it is
-opened as a private repository and designated personal. This happens once per
-configuration store; a later choice in Projects (another database, or none via
-**Use as my personal working database**) is kept. The repository role and
+On every platform Standalone always has a personal working database. Whenever
+no database is designated personal (first start, or after the personal one was
+unticked or removed), the built-in **Local database** (`aowis-standalone-dvmdb`
+under the platform's generic data location) is opened as a private repository
+and designated; in-session changes are announced. An existing designation is
+never replaced, even while that database is unreachable. The built-in database
+cannot be unticked while it is personal: select another database as personal
+instead. A built-in store already configured shared is never made personal. The repository role and
 UUIDv7 are discovered/configured internally, without any input field. Create a project on that database and select **Edit
 network**. The editor initializes a private draft and autosaves supported
 hydraulic transactions. Reopening **Edit network** after an application restart
